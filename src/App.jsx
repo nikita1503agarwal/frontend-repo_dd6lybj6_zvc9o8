@@ -1,73 +1,75 @@
-function App() {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Subtle pattern overlay */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.05),transparent_50%)]"></div>
+import { useEffect, useMemo, useState } from "react";
+import Navbar from "./components/Navbar";
+import Hero from "./components/Hero";
+import ProductGrid from "./components/ProductGrid";
+import CartDrawer from "./components/CartDrawer";
+import AdminPanel from "./components/AdminPanel";
 
-      <div className="relative min-h-screen flex items-center justify-center p-8">
-        <div className="max-w-2xl w-full">
-          {/* Header with Flames icon */}
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center mb-6">
-              <img
-                src="/flame-icon.svg"
-                alt="Flames"
-                className="w-24 h-24 drop-shadow-[0_0_25px_rgba(59,130,246,0.5)]"
-              />
-            </div>
+const API = import.meta.env.VITE_BACKEND_URL;
 
-            <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">
-              Flames Blue
-            </h1>
+export default function App() {
+  const [settings, setSettings] = useState({ logo_url: null, hero_slides: [], social_links: [] });
+  const [products, setProducts] = useState([]);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [cart, setCart] = useState([]);
+  const [view, setView] = useState("shop"); // shop | admin
 
-            <p className="text-xl text-blue-200 mb-6">
-              Build applications through conversation
-            </p>
-          </div>
+  const load = async () => {
+    const s = await fetch(`${API}/api/settings`).then(r => r.json()).catch(()=>({logo_url:null, hero_slides:[], social_links:[]}));
+    setSettings(s);
+    const p = await fetch(`${API}/api/products`).then(r => r.json()).catch(()=>[]);
+    setProducts(p);
+  };
+  useEffect(() => { load(); }, []);
 
-          {/* Instructions */}
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-8 shadow-xl mb-6">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                1
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Describe your idea</h3>
-                <p className="text-blue-200/80 text-sm">Use the chat panel on the left to tell the AI what you want to build</p>
-              </div>
-            </div>
+  const addToCart = (p) => {
+    setCart((c) => {
+      const i = c.findIndex(x => x.id === p.id);
+      if (i >= 0) { const n = [...c]; n[i] = { ...n[i], qty: (n[i].qty || 1) + 1 }; return n; }
+      return [...c, { ...p, qty: 1 }];
+    });
+    setCartOpen(true);
+  };
 
-            <div className="flex items-start gap-4 mb-6">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                2
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Watch it build</h3>
-                <p className="text-blue-200/80 text-sm">Your app will appear in this preview as the AI generates the code</p>
-              </div>
-            </div>
+  const checkout = async () => {
+    if (cart.length === 0) return;
+    const payload = {
+      items: cart.map(i => ({ product_id: i.id, quantity: i.qty, price: i.price, unit: i.unit || "kg" })),
+      customer: { name: "Guest", phone: "", address: "", email: "" },
+      subtotal: cart.reduce((s,i)=>s+i.price*(i.qty||1),0),
+      shipping: 0,
+      total: cart.reduce((s,i)=>s+i.price*(i.qty||1),0),
+      status: "pending",
+    };
+    const res = await fetch(`${API}/api/orders`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload)});
+    if (res.ok) { alert("Order placed!"); setCart([]); setCartOpen(false); }
+    else alert("Error placing order");
+  };
 
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center font-bold">
-                3
-              </div>
-              <div>
-                <h3 className="font-semibold text-white mb-1">Refine and iterate</h3>
-                <p className="text-blue-200/80 text-sm">Continue the conversation to add features and make changes</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="text-center">
-            <p className="text-sm text-blue-300/60">
-              No coding required • Just describe what you want
-            </p>
-          </div>
-        </div>
+  const ShopView = (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <Navbar logoUrl={settings.logo_url} socialLinks={settings.social_links} onCartClick={() => setCartOpen(true)} />
+      <Hero slides={settings.hero_slides?.length? settings.hero_slides : [
+        "https://images.unsplash.com/photo-1541781286675-043c6fc2bc02?q=80&w=1200&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1490818387583-1baba5e638af?q=80&w=1200&auto=format&fit=crop",
+        "https://images.unsplash.com/photo-1517681163774-56d1dfef3854?q=80&w=1200&auto=format&fit=crop",
+      ]} logoUrl={settings.logo_url} />
+      <ProductGrid products={products} onAddToCart={addToCart} />
+      <CartDrawer open={cartOpen} items={cart} onClose={()=>setCartOpen(false)} onCheckout={checkout} />
+      <div className="text-center py-8 text-white/50">
+        <button onClick={()=>setView("admin")} className="underline">Go to Admin</button>
       </div>
     </div>
-  )
-}
+  );
 
-export default App
+  const AdminView = (
+    <div className="min-h-screen">
+      <AdminPanel />
+      <div className="text-center py-4 bg-slate-950">
+        <button onClick={()=>setView("shop")} className="text-white underline">Back to Shop</button>
+      </div>
+    </div>
+  );
+
+  return view === "shop" ? ShopView : AdminView;
+}
